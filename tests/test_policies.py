@@ -25,6 +25,9 @@ def test_chunks_por_secao(retriever):
         ("meu violão veio com defeito", "4.2"),
         ("qual o endereço e telefone da loja", "1.2"),
         ("quanto tempo de garantia", "8.1"),
+        ("entrega em Dourados MS quanto tempo demora", "5.2"),
+        ("vocês abrem domingo?", "2"),
+        ("o produto chegou quebrado", "4.2"),
     ],
 )
 def test_top1_retrieval(retriever, query, expected):
