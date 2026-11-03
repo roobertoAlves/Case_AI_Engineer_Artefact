@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.env
+# histórico de conversas local (SQLite)
+.sessions/
+# enunciado original do desafio (os dados foram copiados para data/)
+Desafio Técnico AI Engineer 2026/
