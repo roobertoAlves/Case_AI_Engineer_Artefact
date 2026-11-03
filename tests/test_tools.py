@@ -139,3 +139,18 @@ def test_agente_tenta_de_novo_quando_modelo_responde_vazio():
     assert reply.text == "Resposta final."
     assert provider.calls == 2
     assert [m["content"] for m in provider.history] == ["Oi", "Resposta final."]
+
+
+def test_verificacao_usa_contato_digitado_pelo_cliente(store):
+    tb = toolbox(store)
+    tb.remember_contacts("Pedido 7, meu telefone é (67) 99789-0123")
+    # o modelo copiou o telefone com um dígito a menos
+    out = run(tb, "consultar_pedido", numero_pedido=7, email_ou_telefone="(67) 9978-0123")
+    assert out["encontrado"] is True
+
+
+def test_contato_digitado_nao_libera_pedido_de_outra_pessoa(store):
+    tb = toolbox(store)
+    tb.remember_contacts("meu telefone é (67) 99789-0123")  # cliente do pedido 7
+    out = run(tb, "consultar_pedido", numero_pedido=3, email_ou_telefone="(67) 99789-0123")
+    assert out["encontrado"] is False

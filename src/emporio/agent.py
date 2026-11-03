@@ -46,6 +46,7 @@ class Agent:
 
     def reply(self, user_message: str) -> Reply:
         self.provider.add_user_message(user_message)
+        self.toolbox.remember_contacts(user_message)
         traces: list[ToolTrace] = []
         empty_retries = 0
         for _ in range(MAX_TOOL_ROUNDS):
