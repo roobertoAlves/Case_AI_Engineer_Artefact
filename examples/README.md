@@ -36,7 +36,8 @@ modelo de 4B nesta execução; deixei-os visíveis em vez de regenerar até sair
 - Ex. 03: informa quantidade exata em estoque ("9 unidades"), contrariando o prompt.
 - Ex. 02: diz que a equipe responde pelo WhatsApp "mesmo fora do horário" — o manual diz
   que fora do expediente há apenas resposta automática. E oferece "simular o frete", que
-  não existe como ferramenta.
+  não existia como ferramenta na época (depois foi criada a `calcular_frete`; o exemplo
+  não foi gerado de novo).
 - Ex. 05: na recusa do pedido de código, oferece sem motivo "dicas de qual pedal ou cabo
   procurar" (resíduo da pergunta anterior).
 

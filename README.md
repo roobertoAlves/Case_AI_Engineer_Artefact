@@ -57,11 +57,11 @@ ollama pull qwen3.5:4b
 São ~3,3 GB. O `.env` é opcional: sem ele valem os padrões abaixo. Para mudar, copie o
 exemplo (`cp .env.example .env`) e edite:
 
-| Variável | Padrão | Para que serve |
-|---|---|---|
-| `OLLAMA_MODEL` | `qwen3.5:4b` | modelo usado (precisa suportar tool calling) |
-| `OLLAMA_HOST` | `http://localhost:11434` | endereço do servidor do Ollama |
-| `OLLAMA_THINK` | `true` | raciocínio antes de responder: melhora a escolha de ferramentas, custa latência |
+| Variável       | Padrão                   | Para que serve                                                                  |
+| -------------- | ------------------------ | ------------------------------------------------------------------------------- |
+| `OLLAMA_MODEL` | `qwen3.5:4b`             | modelo usado (precisa suportar tool calling)                                    |
+| `OLLAMA_HOST`  | `http://localhost:11434` | endereço do servidor do Ollama                                                  |
+| `OLLAMA_THINK` | `true`                   | raciocínio antes de responder: melhora a escolha de ferramentas, custa latência |
 
 ### 3. Conversar
 
@@ -76,13 +76,13 @@ pergunta direto. `menu` mostra as opções de novo a qualquer momento.
 
 Opções úteis:
 
-| Comando | O que faz |
-|---|---|
-| `emporio --debug` | mostra as ferramentas chamadas em cada resposta |
+| Comando                     | O que faz                                                            |
+| --------------------------- | -------------------------------------------------------------------- |
+| `emporio --debug`           | mostra as ferramentas chamadas em cada resposta                      |
 | `emporio --hoje 2026-02-20` | simula a data atual (útil para testar prazos de devolução e horário) |
-| `emporio --session <id>` | retoma uma conversa salva (o id aparece ao sair) |
-| `emporio --listar` | lista as conversas salvas |
-| `emporio --modelo <nome>` | usa outro modelo do Ollama sem editar o `.env` |
+| `emporio --session <id>`    | retoma uma conversa salva (o id aparece ao sair)                     |
+| `emporio --listar`          | lista as conversas salvas                                            |
+| `emporio --modelo <nome>`   | usa outro modelo do Ollama sem editar o `.env`                       |
 
 Outros comandos:
 
@@ -102,7 +102,7 @@ python -m emporio.policies "posso parcelar em 10x?"
 python scripts/gerar_exemplos.py
 ```
 
-`pytest` roda os 56 testes (sem chamar LLM); `python -m emporio.data` imprime o relatório
+`pytest` roda os 66 testes (sem chamar LLM); `python -m emporio.data` imprime o relatório
 de inconsistências dos dados; `python -m emporio.policies "<pergunta>"` mostra os trechos
 do manual recuperados; `scripts/gerar_exemplos.py` regenera as conversas de `examples/`.
 
@@ -115,34 +115,35 @@ flowchart LR
     U[Cliente] -->|mensagem| CLI[CLI · rich]
     CLI --> A[Agent<br/>loop de tool use]
     A <-->|histórico nativo| P{{OllamaProvider<br/>qwen3.5:4b local}}
-    A --> T[Toolbox · 8 ferramentas]
+    A --> T[Toolbox · 9 ferramentas]
     T --> S[(Store<br/>CSVs tratados em memória)]
     T --> R[PolicyRetriever<br/>BM25 por seção do PDF]
     CLI --> DB[(SQLite<br/>histórico de conversas)]
 ```
 
-| Módulo | Responsabilidade |
-|---|---|
-| [`data.py`](src/emporio/data.py) | Carrega e trata os CSVs; consultas determinísticas (busca, preço final com promoção, verificação de cliente) |
-| [`policies.py`](src/emporio/policies.py) | Extrai o PDF, divide por seção numerada e faz busca BM25 com expansão de consulta |
-| [`tools.py`](src/emporio/tools.py) | As ferramentas expostas ao LLM (schemas + implementação) |
-| [`prompts.py`](src/emporio/prompts.py) | Persona, regras e contexto dinâmico (data/hora, loja aberta ou fechada) |
-| [`llm.py`](src/emporio/llm.py) | Acesso ao Ollama (tool calling nativo) atrás de uma interface simples, que permite testar o loop com um provedor falso |
-| [`agent.py`](src/emporio/agent.py) | Loop: LLM → ferramentas → LLM, até a resposta final |
-| [`sessions.py`](src/emporio/sessions.py) / [`cli.py`](src/emporio/cli.py) / [`menu.py`](src/emporio/menu.py) | Persistência em SQLite, interface de terminal e menu de temas |
+| Módulo                                                                                                       | Responsabilidade                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| [`data.py`](src/emporio/data.py)                                                                             | Carrega e trata os CSVs; consultas determinísticas (busca, preço final com promoção, verificação de cliente)           |
+| [`policies.py`](src/emporio/policies.py)                                                                     | Extrai o PDF, divide por seção numerada e faz busca BM25 com expansão de consulta                                      |
+| [`tools.py`](src/emporio/tools.py)                                                                           | As ferramentas expostas ao LLM (schemas + implementação)                                                               |
+| [`prompts.py`](src/emporio/prompts.py)                                                                       | Persona, regras e contexto dinâmico (data/hora, loja aberta ou fechada)                                                |
+| [`llm.py`](src/emporio/llm.py)                                                                               | Acesso ao Ollama (tool calling nativo) atrás de uma interface simples, que permite testar o loop com um provedor falso |
+| [`agent.py`](src/emporio/agent.py)                                                                           | Loop: LLM → ferramentas → LLM, até a resposta final                                                                    |
+| [`sessions.py`](src/emporio/sessions.py) / [`cli.py`](src/emporio/cli.py) / [`menu.py`](src/emporio/menu.py) | Persistência em SQLite, interface de terminal e menu de temas                                                          |
 
 ### Ferramentas
 
-| Ferramenta | Quando o agente usa |
-|---|---|
-| `buscar_produtos` | perguntas abertas de catálogo ("violões até R$ 1.000", "ukulele elétrico") |
-| `detalhes_produto` | um produto específico; se esgotado, já devolve alternativas parecidas |
-| `listar_promocoes_ativas` | promoções, ofertas, "ainda está valendo?" |
-| `simular_pagamento` | valor no PIX e parcelamento — contas feitas em Python, não pelo LLM |
-| `consultar_pedido` | status/rastreio; exige nº do pedido **e** e-mail/telefone do cadastro |
+| Ferramenta                  | Quando o agente usa                                                             |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `buscar_produtos`           | perguntas abertas de catálogo ("violões até R$ 1.000", "ukulele elétrico")      |
+| `detalhes_produto`          | um produto específico; se esgotado, já devolve alternativas parecidas           |
+| `listar_promocoes_ativas`   | promoções, ofertas, "ainda está valendo?"                                       |
+| `simular_pagamento`         | valor no PIX e parcelamento — contas feitas em Python, não pelo LLM             |
+| `consultar_pedido`          | status/rastreio; exige nº do pedido **e** e-mail/telefone do cadastro           |
 | `verificar_troca_devolucao` | devolução, troca ou garantia de um pedido; calcula os prazos com a data de hoje |
-| `consultar_politicas` | qualquer regra do manual (pagamento, frete, trocas, garantia, LGPD...) |
-| `encaminhar_para_atendente` | reclamações e casos para humano (grava em `.sessions/handoffs.jsonl`) |
+| `calcular_frete`            | frete e prazo pelo CEP (ou cidade) de destino e pelos produtos escolhidos       |
+| `consultar_politicas`       | qualquer regra do manual (pagamento, frete, trocas, garantia, LGPD...)          |
+| `encaminhar_para_atendente` | reclamações e casos para humano (grava em `.sessions/handoffs.jsonl`)           |
 
 ---
 
@@ -153,9 +154,9 @@ flowchart LR
 O problema tem dois tipos de conhecimento com naturezas diferentes:
 
 - **Dados operacionais** (preço, estoque, pedidos, promoções) são estruturados, mudam com
-  frequência e exigem exatidão. O manual da loja diz literalmente: *"nunca fornecer
-  informações sobre preços, estoque ou prazos sem consultar o sistema"*. Por isso viram
-  **ferramentas determinísticas**: o LLM decide *quando* consultar e *com quais filtros*,
+  frequência e exigem exatidão. O manual da loja diz literalmente: _"nunca fornecer
+  informações sobre preços, estoque ou prazos sem consultar o sistema"_. Por isso viram
+  **ferramentas determinísticas**: o LLM decide _quando_ consultar e _com quais filtros_,
   mas o número vem do código.
 - **Políticas** são texto. Viram uma ferramenta de **retrieval** sobre o manual.
 
@@ -172,7 +173,7 @@ Alternativas consideradas:
   falso (ver `tests/test_tools.py`).
 
 **Lógica de negócio fica no código, não no prompt.** Ao rodar os cenários, o modelo local
-errou contas de prazo (disse que um pedido *em transporte* estava fora do prazo de
+errou contas de prazo (disse que um pedido _em transporte_ estava fora do prazo de
 arrependimento). Em vez de mais instruções no prompt, a regra virou a ferramenta
 `verificar_troca_devolucao`. O mesmo vale para o PIX não cumulativo e as faixas de
 parcelamento em `simular_pagamento`.
@@ -185,7 +186,7 @@ de Arrependimento"). Decisões:
 - **Chunk = subseção inteira**, extraída com `pypdf` em modo layout. Nenhuma regra é
   cortada ao meio, e cada trecho volta com a referência da seção.
 - **BM25 em vez de embeddings**: com 25 chunks, busca lexical com stemming simples
-  (prefixo de 5 letras: *devolver/devolução* → `devol`) e uma pequena **expansão de
+  (prefixo de 5 letras: _devolver/devolução_ → `devol`) e uma pequena **expansão de
   consulta** com sinônimos do domínio ("demora" → prazo, "Dourados" → outras cidades)
   acerta os 11 casos de teste de `tests/test_policies.py`, sem modelo de embeddings,
   sem banco vetorial e sem custo por consulta. A expansão nasceu de um erro real: a
@@ -256,16 +257,16 @@ de Arrependimento"). Decisões:
 Ao carregar os CSVs ([`data.py`](src/emporio/data.py)) o agente trata e reporta
 inconsistências (`python -m emporio.data`):
 
-| Problema encontrado | Tratamento |
-|---|---|
-| Descrições que citam **outra marca** (ex.: "Music Man Bass 1X" descrito como Fender Jazz Bass; "Bateria Pearl Kit 2" descrita como Tama) — 6 produtos | Descrição suprimida; o agente fala só de nome, preço e especificações |
-| Produto ativo com estoque zero (Giannini GF-3D) | Tratado como indisponível; alternativas sugeridas |
-| Produtos `discontinued` e `coming_soon` | Nunca aparecem como disponíveis |
-| Promoções duplicadas por produto e inativas | Só `is_active = 1` vale; havendo mais de uma ativa, fica a de maior desconto (não cumulativas) |
-| Pedidos 3 e 20 com total diferente da soma dos itens a preço atual | Mantido o total registrado (pode ter havido desconto na época); reportado na auditoria |
-| Nenhuma data real de entrega nos pedidos | Usa-se a previsão de entrega como aproximação, e o agente avisa que a data é aproximada |
-| E-mail com acento no manual (`empóriodamusica`) x capa sem acento | Corrigido para `contato@emporiodamusica.com.br` |
-| Busca por "violão" trazia um ukulele pela descrição ("uma ponte entre o ukulele e o violão") | Busca só em nome, categoria e especificações |
+| Problema encontrado                                                                                                                                   | Tratamento                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Descrições que citam **outra marca** (ex.: "Music Man Bass 1X" descrito como Fender Jazz Bass; "Bateria Pearl Kit 2" descrita como Tama) — 6 produtos | Descrição suprimida; o agente fala só de nome, preço e especificações                          |
+| Produto ativo com estoque zero (Giannini GF-3D)                                                                                                       | Tratado como indisponível; alternativas sugeridas                                              |
+| Produtos `discontinued` e `coming_soon`                                                                                                               | Nunca aparecem como disponíveis                                                                |
+| Promoções duplicadas por produto e inativas                                                                                                           | Só `is_active = 1` vale; havendo mais de uma ativa, fica a de maior desconto (não cumulativas) |
+| Pedidos 3 e 20 com total diferente da soma dos itens a preço atual                                                                                    | Mantido o total registrado (pode ter havido desconto na época); reportado na auditoria         |
+| Nenhuma data real de entrega nos pedidos                                                                                                              | Usa-se a previsão de entrega como aproximação, e o agente avisa que a data é aproximada        |
+| E-mail com acento no manual (`empóriodamusica`) x capa sem acento                                                                                     | Corrigido para `contato@emporiodamusica.com.br`                                                |
+| Busca por "violão" trazia um ukulele pela descrição ("uma ponte entre o ukulele e o violão")                                                          | Busca só em nome, categoria e especificações                                                   |
 
 ---
 
@@ -285,8 +286,21 @@ inconsistências (`python -m emporio.data`):
 - **Parcelamento**: "até 3x sem valor mínimo (exceto abaixo de R$ 50,00)" foi lido como
   parcela mínima de R$ 50 nessa faixa.
 - O agente **não fecha vendas nem reserva produtos**: orienta a ir à loja ou falar com a
-  equipe. Frete para outras cidades não tem tabela nos dados, então o agente explica a
-  política e diz que o valor é informado no fechamento.
+  equipe.
+- **Frete por CEP** (política 5): o manual diz que o valor é calculado "com base no CEP
+  de destino, peso e dimensões do produto". O CEP resolve a região:
+  - **Região metropolitana de Campo Grande** = município de Campo Grande (CEPs
+    79000-000 a 79124-999). O manual não lista os municípios da região metropolitana.
+    Aqui o valor é exato pela regra 5.1: grátis para pedidos **acima** de R$ 500 (o
+    valor dos produtos já com promoção), senão R$ 35.
+  - **Outras cidades**: os dados não têm peso, dimensões nem tabela dos Correios/Jadlog,
+    então a ferramenta devolve modalidades e prazos e deixa o valor em aberto, em vez de
+    inventar. Para nomear a cidade, há faixas de CEP das cidades de MS presentes na base
+    de clientes (Dourados, Três Lagoas, Corumbá, Ponta Porã).
+  - **Frete especial** (5.2): bateria acústica, piano digital e contrabaixo acústico são
+    sinalizados para cotação individual.
+  - O CEP da própria loja no manual (79202-333) fica fora da faixa real de Campo Grande
+    (é um dado fictício); não usei esse CEP para definir a região.
 
 ---
 
@@ -301,8 +315,10 @@ inconsistências (`python -m emporio.data`):
   muito diferente.
 - Os CSVs são lidos uma vez na inicialização (é um protótipo; em produção seriam consultas
   ao banco/ERP).
-- Sem detecção de feriados, sem cálculo de frete por CEP, sem integração real com
-  WhatsApp.
+- Sem detecção de feriados e sem integração real com WhatsApp.
+- Frete fora de Campo Grande sem valor em reais (faltam peso, dimensões e tabela das
+  transportadoras); as faixas de CEP estão numa tabela fixa, não numa consulta aos
+  Correios.
 
 **Com mais tempo eu faria**
 
@@ -320,25 +336,15 @@ inconsistências (`python -m emporio.data`):
 
 ## Uso de assistentes de código
 
-> **Nota para o candidato:** esta seção descreve o fluxo usado nesta sessão; revise e
-> ajuste com suas próprias palavras antes de entregar.
-
 Usei o **Claude Code** (app desktop, modelo Claude Opus 5.5) como par de programação
 durante todo o projeto. Fluxo:
 
 1. **Leitura e planejamento**: o assistente leu o enunciado, o manual em PDF e todos os
    CSVs, apontou inconsistências nos dados e propôs a arquitetura (function calling +
-   retrieval por seção). As decisões que dependiam de mim — provedor de LLM (no fim,
-   só Ollama local) e manter o repositório só local até
-   a revisão — foram perguntadas antes de começar.
-2. **Desenvolvimento incremental em branches**: uma branch por etapa
-   (`feature/data-layer`, `feature/policy-retrieval`, `feature/agent-core`,
-   `feature/cli`, `docs/examples-readme`, `feature/menu-temas`,
-   `refactor/somente-ollama`), cada uma com testes e mesclada na `main` com
-   `--no-ff`, para o histórico mostrar o progresso real.
-3. **Testes como rede de segurança**: cada módulo foi escrito junto com testes `pytest`
+   retrieval por seção).
+2. **Testes como rede de segurança**: cada módulo foi escrito junto com testes `pytest`
    que não dependem de LLM (incluindo um provedor falso para testar o loop do agente).
-4. **Iteração guiada por execução real**: os cenários de exemplo foram rodados contra o
+3. **Iteração guiada por execução real**: os cenários de exemplo foram rodados contra o
    modelo local, as respostas revisadas contra os dados, e cada erro encontrado virou um
    commit `fix(...)` com a causa descrita na mensagem (resposta vazia, telefone
    transcrito errado, retrieval de frete, prazo de devolução).
@@ -353,5 +359,5 @@ durante todo o projeto. Fluxo:
 ├── scripts/gerar_exemplos.py
 ├── src/emporio/
 │   ├── agent.py  cli.py  data.py  llm.py  menu.py  policies.py  prompts.py  sessions.py  tools.py
-└── tests/                   # 56 testes (dados, retrieval, ferramentas, loop, sessões, menu)
+└── tests/                   # 66 testes (dados, retrieval, ferramentas, frete, loop, sessões, menu)
 ```
