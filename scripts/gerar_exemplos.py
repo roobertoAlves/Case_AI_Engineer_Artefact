@@ -1,11 +1,3 @@
-"""Gera as conversas de exemplo em examples/ rodando o agente de verdade.
-
-Uso: python scripts/gerar_exemplos.py [--provider ollama]
-
-Cada cenário roda numa conversa nova, com uma data simulada, e o arquivo .md
-registra as mensagens e as ferramentas chamadas (com o retorno resumido).
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -85,15 +77,14 @@ def _short(output: str, limit: int = 600) -> str:
     return output if len(output) <= limit else output[:limit] + " …"
 
 
-def run_scenario(scenario: dict, provider_name: str | None) -> str:
-    provider = make_provider(provider_name)
+def run_scenario(scenario: dict, model: str | None) -> str:
+    provider = make_provider(model)
     now = datetime.fromisoformat(scenario["agora"]).replace(tzinfo=TZ)
     agent = Agent(provider=provider, now=lambda: now)
-    model = getattr(provider, "model", "?")
     lines = [
         f"# {scenario['titulo']}",
         "",
-        f"> Gerado por `scripts/gerar_exemplos.py` · provedor: `{provider.name}` · modelo: `{model}` · "
+        f"> Gerado por `scripts/gerar_exemplos.py` · modelo: `{provider.model}` (Ollama) · "
         f"data/hora simulada: {now:%d/%m/%Y %H:%M}",
         "",
     ]
@@ -117,7 +108,7 @@ def run_scenario(scenario: dict, provider_name: str | None) -> str:
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--provider", choices=["ollama"])
+    parser.add_argument("--modelo", help="modelo do Ollama")
     parser.add_argument("--only", help="gera só o cenário cujo slug contém este texto")
     args = parser.parse_args()
     OUT_DIR.mkdir(exist_ok=True)
@@ -125,7 +116,7 @@ def main() -> None:
         if args.only and args.only not in scenario["slug"]:
             continue
         print(f"gerando {scenario['slug']}...", flush=True)
-        (OUT_DIR / f"{scenario['slug']}.md").write_text(run_scenario(scenario, args.provider), encoding="utf-8")
+        (OUT_DIR / f"{scenario['slug']}.md").write_text(run_scenario(scenario, args.modelo), encoding="utf-8")
 
 
 if __name__ == "__main__":
