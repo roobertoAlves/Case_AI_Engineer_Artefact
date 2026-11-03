@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -48,6 +49,18 @@ class Toolbox:
         self.today = today
         self.specs = self._build_specs()
         self.by_name = {s.name: s for s in self.specs}
+        # E-mails/telefones que o cliente digitou nesta conversa, extraídos literalmente.
+        # Modelos pequenos às vezes copiam o contato errado (ex.: pulam um dígito) ao
+        # montar a chamada; verificar também contra o texto original evita esse ruído.
+        self.user_contacts: list[str] = []
+
+    def remember_contacts(self, user_message: str) -> None:
+        self.user_contacts += re.findall(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", user_message)
+        self.user_contacts += re.findall(r"\(?\d{2}\)?[\s-]?\d{4,5}-?\d{4}", user_message)
+
+    def _verify(self, order, email_ou_telefone: str) -> bool:
+        candidates = [email_ou_telefone, *self.user_contacts]
+        return any(self.store.verify_customer(order, c) for c in candidates if c)
 
     def run(self, name: str, args: dict) -> str:
         """Executa uma ferramenta e devolve JSON (string). Erros viram JSON de erro."""
@@ -117,7 +130,7 @@ class Toolbox:
     def consultar_pedido(self, numero_pedido: int, email_ou_telefone: str) -> dict:
         order = self.store.orders.get(int(numero_pedido))
         # Mesma resposta para "não existe" e "não confere": não revela quais pedidos existem.
-        if order is None or not self.store.verify_customer(order, email_ou_telefone):
+        if order is None or not self._verify(order, email_ou_telefone):
             return {
                 "encontrado": False,
                 "mensagem": "não foi possível localizar um pedido com esse número e esse e-mail/telefone",

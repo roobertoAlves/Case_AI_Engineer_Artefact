@@ -37,6 +37,21 @@ STOPWORDS = set(
     ).split()
 )
 
+# Expansão de consulta: cobre lacunas de vocabulário entre o cliente e o manual
+# (ex.: "quanto tempo demora" x "prazo", "Dourados" x "outras cidades").
+QUERY_EXPANSIONS = {
+    "demora": "prazo", "tempo": "prazo", "quando": "prazo", "chega": "entrega prazo",
+    "dourados": "outras cidades", "tres": "outras cidades", "corumba": "outras cidades",
+    "ponta": "outras cidades", "interior": "outras cidades", "correios": "outras cidades",
+    "cep": "outras cidades frete", "envio": "entrega frete", "mandam": "entrega frete",
+    "abre": "horario funcionamento", "fecha": "horario funcionamento", "aberto": "horario funcionamento",
+    "aberta": "horario funcionamento", "domingo": "horario funcionamento", "feriado": "horario funcionamento",
+    "pagar": "pagamento", "cartao": "pagamento credito", "vezes": "parcelamento",
+    "arrependi": "arrependimento devolucao", "desistir": "arrependimento devolucao",
+    "quebrado": "defeito", "estragou": "defeito", "dados": "privacidade",
+    "onde": "endereco", "telefone": "empresa", "whatsapp": "empresa",
+}
+
 _HEADING = re.compile(r"^(\d+)\.(\d+)?\s+(\S.*)$")
 
 
@@ -129,7 +144,9 @@ class PolicyRetriever:
         self.idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in df.items()}
 
     def search(self, query: str, k: int = 3) -> list[tuple[float, PolicyChunk]]:
-        q = set(_tokens(query))
+        words = re.findall(r"\w+", normalize(query))
+        expanded = " ".join([query, *(QUERY_EXPANSIONS[w] for w in words if w in QUERY_EXPANSIONS)])
+        q = set(_tokens(expanded))
         scored = []
         for doc, length, chunk in zip(self.docs, self.lengths, self.chunks):
             score = 0.0

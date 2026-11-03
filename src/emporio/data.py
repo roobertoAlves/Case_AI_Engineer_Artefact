@@ -315,12 +315,17 @@ class Store:
         return [p for h, p in sorted(scored, key=lambda x: -x[0]) if h == best]
 
     def similar_available(self, product: Product, limit: int = 3) -> list[Product]:
-        """Alternativas disponíveis da mesma categoria, com preço mais próximo."""
+        """Alternativas disponíveis da mesma categoria: mesmo tipo de corda/eletrônica primeiro,
+        depois preço mais próximo."""
         candidates = [
             p for p in self.products.values()
             if p.category_id == product.category_id and p.available and p.id != product.id
         ]
-        candidates.sort(key=lambda p: abs(p.final_price - product.final_price))
+
+        def mismatch(p: Product) -> int:
+            return sum(p.specs.get(k) != product.specs.get(k) for k in ("strings", "electronics"))
+
+        candidates.sort(key=lambda p: (mismatch(p), abs(p.final_price - product.final_price)))
         return candidates[:limit]
 
     def verify_customer(self, order: Order, email_or_phone: str) -> bool:
