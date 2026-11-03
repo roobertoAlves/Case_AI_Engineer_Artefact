@@ -123,3 +123,19 @@ def test_loop_do_agente_executa_ferramenta_e_responde():
     assert reply.text.startswith("O Takamine")
     assert reply.tool_calls[0].name == "detalhes_produto"
     assert '"preco_tabela": 2199.0' in reply.tool_calls[0].output
+
+
+class EmptyThenAnswerProvider(FakeProvider):
+    def step(self, system, context, tools):
+        self.calls += 1
+        text = "" if self.calls == 1 else "Resposta final."
+        self.history.append({"role": "assistant", "content": text})
+        return Turn(text)
+
+
+def test_agente_tenta_de_novo_quando_modelo_responde_vazio():
+    provider = EmptyThenAnswerProvider()
+    reply = Agent(provider=provider).reply("Oi")
+    assert reply.text == "Resposta final."
+    assert provider.calls == 2
+    assert [m["content"] for m in provider.history] == ["Oi", "Resposta final."]

@@ -13,6 +13,7 @@ from emporio.prompts import SYSTEM_PROMPT, TZ, dynamic_context
 from emporio.tools import Toolbox
 
 MAX_TOOL_ROUNDS = 6
+MAX_EMPTY_RETRIES = 2
 FALLBACK_REPLY = (
     "Opa, me enrolei aqui para encontrar essa informação. Pode reformular a pergunta? "
     "Se preferir, fale com a equipe pelo (67) 3341-4444."
@@ -46,8 +47,14 @@ class Agent:
     def reply(self, user_message: str) -> Reply:
         self.provider.add_user_message(user_message)
         traces: list[ToolTrace] = []
+        empty_retries = 0
         for _ in range(MAX_TOOL_ROUNDS):
             turn = self.provider.step(SYSTEM_PROMPT, dynamic_context(self.now()), self.toolbox.specs)
+            if not turn.tool_calls and not turn.text.strip() and empty_retries < MAX_EMPTY_RETRIES:
+                # Modelos pequenos às vezes "pensam" e não escrevem nada: descarta e tenta de novo.
+                empty_retries += 1
+                self.provider.history.pop()
+                continue
             if not turn.tool_calls:
                 return Reply(turn.text.strip() or FALLBACK_REPLY, traces)
             results: list[tuple[ToolCall, str]] = []
