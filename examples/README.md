@@ -1,7 +1,7 @@
 # Conversas de exemplo
 
 As 5 conversas foram geradas rodando o agente de verdade com
-`python scripts/gerar_exemplos.py --provider ollama` (modelo local `qwen3.5:4b`, GPU
+`python scripts/gerar_exemplos.py` (modelo local `qwen3.5:4b`, GPU
 RTX 5060 Ti). Nada foi editado à mão: o texto do agente e as chamadas de ferramenta
 (com o retorno resumido, dentro de "Ferramentas chamadas") são exatamente o que saiu.
 Cada cenário usa uma data/hora simulada, para exercitar horários e prazos de política.

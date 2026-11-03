@@ -49,7 +49,7 @@ class SessionStore:
             return None
         if row[0] != provider:
             raise ValueError(
-                f"a sessão {session_id} foi criada com o provedor '{row[0]}'; use --provider {row[0]}"
+                f"a sessão {session_id} foi criada com outro provedor ('{row[0]}') e não pode ser retomada"
             )
         return json.loads(row[1])
 

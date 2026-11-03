@@ -1,7 +1,8 @@
-"""Provedor de LLM com tool calling: Ollama (modelo local).
+"""Acesso ao LLM local via Ollama, com tool calling nativo.
 
-O provedor guarda o histórico no seu formato nativo (lista de dicts
-serializável em JSON), para que possa ser persistido e retomado.
+O provedor guarda o histórico no formato de mensagens do Ollama (lista de dicts
+serializável em JSON), para ser persistido e retomado. O agente depende só do
+protocolo `LLMProvider`, o que permite testar o loop com um provedor falso.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ class Turn:
 
 class LLMProvider(Protocol):
     name: str
+    model: str
     history: list[dict]
 
     def add_user_message(self, text: str) -> None: ...
@@ -81,8 +83,5 @@ class OllamaProvider:
             self.history.append({"role": "tool", "tool_name": call.name, "content": output})
 
 
-def make_provider(name: str | None = None) -> LLMProvider:
-    name = (name or os.getenv("LLM_PROVIDER", "ollama")).lower()
-    if name == "ollama":
-        return OllamaProvider()
-    raise ValueError(f"LLM_PROVIDER desconhecido: {name!r} (use 'ollama')")
+def make_provider(model: str | None = None) -> LLMProvider:
+    return OllamaProvider(model=model)

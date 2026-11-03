@@ -26,6 +26,7 @@ def test_with_topic():
 
 class RecordingProvider:
     name = "fake"
+    model = "fake-model"
 
     def __init__(self):
         self.history, self.received = [], []
@@ -45,7 +46,7 @@ class RecordingProvider:
 def run_cli(monkeypatch, tmp_path, inputs):
     provider = RecordingProvider()
     answers = iter(inputs)
-    monkeypatch.setattr(cli, "make_provider", lambda name=None: provider)
+    monkeypatch.setattr(cli, "make_provider", lambda model=None: provider)
     monkeypatch.setattr(cli, "SessionStore", lambda: SessionStore(tmp_path / "c.db"))
     monkeypatch.setattr(cli.Console, "input", lambda self, prompt="": next(answers))
     assert cli.main([]) == 0

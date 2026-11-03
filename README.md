@@ -33,7 +33,7 @@ Conversas completas em [`examples/`](examples/README.md).
 
 ## Como rodar
 
-Requisitos: Python 3.11+ e o [Ollama](https://ollama.com) (tabela abaixo).
+Requisitos: Python 3.11+ e o [Ollama](https://ollama.com) instalado (roda o modelo localmente, sem custo e sem chave de API).
 
 ### 1. Instalar
 
@@ -48,15 +48,20 @@ pip install -e ".[dev]"
 
 (Com [uv](https://docs.astral.sh/uv/): `uv venv && uv pip install -e ".[dev]"`.)
 
-### 2. Configurar o provedor
+### 2. Baixar o modelo
 
 ```bash
-cp .env.example .env
+ollama pull qwen3.5:4b
 ```
 
-| Provedor | Configuração no `.env` | Observação |
+São ~3,3 GB. O `.env` é opcional: sem ele valem os padrões abaixo. Para mudar, copie o
+exemplo (`cp .env.example .env`) e edite:
+
+| Variável | Padrão | Para que serve |
 |---|---|---|
-| **Ollama (local, grátis)** — padrão | `LLM_PROVIDER=ollama`, `OLLAMA_MODEL=qwen3.5:4b` | Instale o [Ollama](https://ollama.com) e rode `ollama pull qwen3.5:4b` (~3,3 GB). Os exemplos foram gerados assim. |
+| `OLLAMA_MODEL` | `qwen3.5:4b` | modelo usado (precisa suportar tool calling) |
+| `OLLAMA_HOST` | `http://localhost:11434` | endereço do servidor do Ollama |
+| `OLLAMA_THINK` | `true` | raciocínio antes de responder: melhora a escolha de ferramentas, custa latência |
 
 ### 3. Conversar
 
@@ -77,6 +82,7 @@ Opções úteis:
 | `emporio --hoje 2026-02-20` | simula a data atual (útil para testar prazos de devolução e horário) |
 | `emporio --session <id>` | retoma uma conversa salva (o id aparece ao sair) |
 | `emporio --listar` | lista as conversas salvas |
+| `emporio --modelo <nome>` | usa outro modelo do Ollama sem editar o `.env` |
 
 Outros comandos:
 
@@ -93,7 +99,7 @@ python -m emporio.policies "posso parcelar em 10x?"
 ```
 
 ```bash
-python scripts/gerar_exemplos.py --provider ollama
+python scripts/gerar_exemplos.py
 ```
 
 `pytest` roda os 56 testes (sem chamar LLM); `python -m emporio.data` imprime o relatório
@@ -108,7 +114,7 @@ do manual recuperados; `scripts/gerar_exemplos.py` regenera as conversas de `exa
 flowchart LR
     U[Cliente] -->|mensagem| CLI[CLI · rich]
     CLI --> A[Agent<br/>loop de tool use]
-    A <-->|histórico nativo| P{{LLMProvider<br/>Ollama}}
+    A <-->|histórico nativo| P{{OllamaProvider<br/>qwen3.5:4b local}}
     A --> T[Toolbox · 8 ferramentas]
     T --> S[(Store<br/>CSVs tratados em memória)]
     T --> R[PolicyRetriever<br/>BM25 por seção do PDF]
@@ -121,7 +127,7 @@ flowchart LR
 | [`policies.py`](src/emporio/policies.py) | Extrai o PDF, divide por seção numerada e faz busca BM25 com expansão de consulta |
 | [`tools.py`](src/emporio/tools.py) | As ferramentas expostas ao LLM (schemas + implementação) |
 | [`prompts.py`](src/emporio/prompts.py) | Persona, regras e contexto dinâmico (data/hora, loja aberta ou fechada) |
-| [`llm.py`](src/emporio/llm.py) | Provedor Ollama atrás de uma interface comum |
+| [`llm.py`](src/emporio/llm.py) | Acesso ao Ollama (tool calling nativo) atrás de uma interface simples, que permite testar o loop com um provedor falso |
 | [`agent.py`](src/emporio/agent.py) | Loop: LLM → ferramentas → LLM, até a resposta final |
 | [`sessions.py`](src/emporio/sessions.py) / [`cli.py`](src/emporio/cli.py) / [`menu.py`](src/emporio/menu.py) | Persistência em SQLite, interface de terminal e menu de temas |
 
@@ -189,12 +195,18 @@ de Arrependimento"). Decisões:
 
 ### Modelo e provedor
 
-O agente usa **Ollama + `qwen3.5:4b`**, 100% local ([`llm.py`](src/emporio/llm.py)):
+**Ollama + `qwen3.5:4b`**, 100% local:
 
-- Gratuito, sem chave de API, roda numa GPU de consumo e suporta tool calling nativo.
-  Foi o usado para gerar os exemplos. Comparei com um Qwen 3.5 9B disponível localmente
-  no cenário de devolução e produto esgotado: ele não foi melhor e foi ~50% mais lento,
-  então fiquei com o 4B.
+- **Gratuito e sem chave de API**: qualquer avaliador roda o projeto só com o Ollama, e
+  nenhum dado de cliente sai da máquina (relevante para a LGPD).
+- **Tool calling nativo** e tamanho que roda numa GPU de consumo (~5–10 s por resposta
+  numa RTX 5060 Ti).
+- Comparei com um Qwen 3.5 9B disponível localmente no cenário de devolução e produto
+  esgotado: ele não foi melhor e foi ~50% mais lento, então fiquei com o 4B.
+- O preço de um modelo pequeno é seguir instruções finas com menos precisão. A resposta
+  da arquitetura é tirar do modelo tudo que é conta, prazo ou regra (ferramentas
+  determinísticas) e corrigir no código os erros recorrentes que apareceram nos testes.
+  Trocar de modelo é uma variável de ambiente (`OLLAMA_MODEL`).
 
 ### Estratégia de prompt
 
@@ -316,12 +328,13 @@ durante todo o projeto. Fluxo:
 
 1. **Leitura e planejamento**: o assistente leu o enunciado, o manual em PDF e todos os
    CSVs, apontou inconsistências nos dados e propôs a arquitetura (function calling +
-   retrieval por seção). As decisões que dependiam de mim — provedor de LLM (Ollama
-   local, gerando os exemplos localmente) e manter o repositório só local até
+   retrieval por seção). As decisões que dependiam de mim — provedor de LLM (no fim,
+   só Ollama local) e manter o repositório só local até
    a revisão — foram perguntadas antes de começar.
 2. **Desenvolvimento incremental em branches**: uma branch por etapa
    (`feature/data-layer`, `feature/policy-retrieval`, `feature/agent-core`,
-   `feature/cli`, `docs/examples-readme`, `feature/menu-temas`), cada uma com testes e mesclada na `main` com
+   `feature/cli`, `docs/examples-readme`, `feature/menu-temas`,
+   `refactor/somente-ollama`), cada uma com testes e mesclada na `main` com
    `--no-ff`, para o histórico mostrar o progresso real.
 3. **Testes como rede de segurança**: cada módulo foi escrito junto com testes `pytest`
    que não dependem de LLM (incluindo um provedor falso para testar o loop do agente).

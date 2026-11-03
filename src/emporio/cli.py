@@ -42,7 +42,7 @@ def parse_now(value: str | None):
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(description="Agente de atendimento da Empório da Música")
-    parser.add_argument("--provider", choices=["ollama"], help="padrão: LLM_PROVIDER do .env")
+    parser.add_argument("--modelo", help="modelo do Ollama (padrão: OLLAMA_MODEL do .env ou qwen3.5:4b)")
     parser.add_argument("--session", help="id de uma conversa salva para retomar")
     parser.add_argument("--listar", action="store_true", help="lista as conversas salvas")
     parser.add_argument("--debug", action="store_true", help="mostra as chamadas de ferramentas")
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
             console.print(f"{sid}  {provider:<10} {updated}")
         return 0
 
-    provider = make_provider(args.provider)
+    provider = make_provider(args.modelo)
     session_id = args.session or sessions.new_id()
     if args.session:
         history = sessions.load(session_id, provider.name)
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     agent = Agent(provider=provider, now=parse_now(args.hoje))
     console.print(Panel.fit(
         "[bold]Empório da Música[/bold] — Sua música começa aqui. 🎸\n"
-        f"Assistente virtual Duda · provedor: {provider.name} · sessão: {session_id}\n"
+        f"Assistente virtual Duda · modelo: {provider.model} · sessão: {session_id}\n"
         "Digite 'sair' para encerrar.",
         border_style="yellow",
     ))
@@ -104,8 +104,8 @@ def main(argv: list[str] | None = None) -> int:
         with console.status("Duda está digitando..."):
             try:
                 reply = agent.reply(message)
-            except Exception as exc:  # noqa: BLE001 — erro de rede/provedor não deve derrubar o chat
-                console.print(f"[red]Erro ao falar com o provedor de LLM: {exc}[/red]")
+            except Exception as exc:  # noqa: BLE001 — erro de rede/Ollama não deve derrubar o chat
+                console.print(f"[red]Erro ao falar com o Ollama (ele está rodando?): {exc}[/red]")
                 del provider.history[checkpoint:]  # descarta o turno incompleto
                 continue
         if args.debug:
