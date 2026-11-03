@@ -64,6 +64,11 @@ cp .env.example .env
 emporio
 ```
 
+Ao abrir, a Duda mostra um **menu de temas** (produtos, promoções, pedido, trocas,
+pagamento, entregas, horário/contato, atendente). O cliente escolhe pelo número, recebe
+uma pergunta de orientação e escreve a dúvida com as próprias palavras, ou ignora o menu e
+pergunta direto. `menu` mostra as opções de novo a qualquer momento.
+
 Opções úteis:
 
 | Comando | O que faz |
@@ -91,7 +96,7 @@ python -m emporio.policies "posso parcelar em 10x?"
 python scripts/gerar_exemplos.py --provider ollama
 ```
 
-`pytest` roda os 43 testes (sem chamar LLM); `python -m emporio.data` imprime o relatório
+`pytest` roda os 56 testes (sem chamar LLM); `python -m emporio.data` imprime o relatório
 de inconsistências dos dados; `python -m emporio.policies "<pergunta>"` mostra os trechos
 do manual recuperados; `scripts/gerar_exemplos.py` regenera as conversas de `examples/`.
 
@@ -118,7 +123,7 @@ flowchart LR
 | [`prompts.py`](src/emporio/prompts.py) | Persona, regras e contexto dinâmico (data/hora, loja aberta ou fechada) |
 | [`llm.py`](src/emporio/llm.py) | Provedor Ollama atrás de uma interface comum |
 | [`agent.py`](src/emporio/agent.py) | Loop: LLM → ferramentas → LLM, até a resposta final |
-| [`sessions.py`](src/emporio/sessions.py) / [`cli.py`](src/emporio/cli.py) | Persistência em SQLite e interface de terminal |
+| [`sessions.py`](src/emporio/sessions.py) / [`cli.py`](src/emporio/cli.py) / [`menu.py`](src/emporio/menu.py) | Persistência em SQLite, interface de terminal e menu de temas |
 
 ### Ferramentas
 
@@ -210,6 +215,13 @@ O agente usa **Ollama + `qwen3.5:4b`**, 100% local ([`llm.py`](src/emporio/llm.p
 
 - **CLI** com `rich`: o foco é o agente, e o terminal deixa ver as chamadas de ferramenta
   (`--debug`).
+- **Menu de temas** ([`menu.py`](src/emporio/menu.py)), como nos chatbots de suporte: ajuda
+  quem não sabe o que pode perguntar, mas não engessa o fluxo. Depois de escolher o tema, o
+  cliente escreve a pergunta livremente, e o tema e a pergunta de orientação vão junto como
+  contexto para o agente. Isso importa: sem a pergunta de orientação, a resposta "Dourados"
+  a "Para qual cidade seria a entrega?" não era entendida (achado testando com o modelo
+  local). Números só contam como escolha logo depois do menu; depois de uma resposta, "2"
+  pode ser uma quantidade.
 - **Histórico em SQLite** (`.sessions/conversas.db`): atendimento é naturalmente
   multi-turno ("Pedido 7" só faz sentido depois de "quero devolver") e o cliente pode
   voltar depois. O histórico é salvo no formato nativo do provedor, então a conversa é
@@ -309,7 +321,7 @@ durante todo o projeto. Fluxo:
    a revisão — foram perguntadas antes de começar.
 2. **Desenvolvimento incremental em branches**: uma branch por etapa
    (`feature/data-layer`, `feature/policy-retrieval`, `feature/agent-core`,
-   `feature/cli`, `docs/examples-readme`), cada uma com testes e mesclada na `main` com
+   `feature/cli`, `docs/examples-readme`, `feature/menu-temas`), cada uma com testes e mesclada na `main` com
    `--no-ff`, para o histórico mostrar o progresso real.
 3. **Testes como rede de segurança**: cada módulo foi escrito junto com testes `pytest`
    que não dependem de LLM (incluindo um provedor falso para testar o loop do agente).
@@ -327,6 +339,6 @@ durante todo o projeto. Fluxo:
 ├── examples/                # 5 conversas reais + análise crítica
 ├── scripts/gerar_exemplos.py
 ├── src/emporio/
-│   ├── agent.py  cli.py  data.py  llm.py  policies.py  prompts.py  sessions.py  tools.py
-└── tests/                   # 43 testes (dados, retrieval, ferramentas, loop, sessões)
+│   ├── agent.py  cli.py  data.py  llm.py  menu.py  policies.py  prompts.py  sessions.py  tools.py
+└── tests/                   # 56 testes (dados, retrieval, ferramentas, loop, sessões, menu)
 ```

@@ -5,6 +5,9 @@ Uso:
     emporio --session abc123     # retoma uma conversa salva
     emporio --debug              # mostra as ferramentas chamadas a cada resposta
     emporio --hoje 2026-02-20    # simula a data atual (útil para testar prazos)
+
+Na conversa, o cliente pode escolher um tema do menu pelo número e depois
+escrever a pergunta, ou digitar a pergunta direto. "menu" mostra as opções.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from rich.panel import Panel
 
 from emporio.agent import Agent
 from emporio.llm import make_provider
+from emporio.menu import MENU_COMMANDS, Topic, follow_up_text, menu_text, select_topic, with_topic
 from emporio.prompts import TZ
 from emporio.sessions import SessionStore
 
@@ -70,6 +74,11 @@ def main(argv: list[str] | None = None) -> int:
         "Digite 'sair' para encerrar.",
         border_style="yellow",
     ))
+    console.print("[bold yellow]Duda:[/bold yellow]", Markdown(f"Oi! Eu sou a Duda 🎸\n\n{menu_text()}"))
+    # Números só valem como escolha de tema logo depois do menu: depois de uma resposta,
+    # "2" pode ser a resposta a uma pergunta da Duda (ex.: quantidade).
+    menu_active = True
+    pending_topic: Topic | None = None
 
     while True:
         try:
@@ -80,10 +89,21 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if user.lower() in EXIT_WORDS:
             break
+        if user.lower() in MENU_COMMANDS:
+            console.print("[bold yellow]Duda:[/bold yellow]", Markdown(menu_text()))
+            menu_active, pending_topic = True, None
+            continue
+        topic = select_topic(user) if menu_active else None
+        if topic:
+            console.print("[bold yellow]Duda:[/bold yellow]", Markdown(follow_up_text(topic)))
+            menu_active, pending_topic = False, topic
+            continue
+        message = with_topic(user, pending_topic)
+        menu_active, pending_topic = False, None
         checkpoint = len(provider.history)
         with console.status("Duda está digitando..."):
             try:
-                reply = agent.reply(user)
+                reply = agent.reply(message)
             except Exception as exc:  # noqa: BLE001 — erro de rede/provedor não deve derrubar o chat
                 console.print(f"[red]Erro ao falar com o provedor de LLM: {exc}[/red]")
                 del provider.history[checkpoint:]  # descarta o turno incompleto
@@ -92,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             for t in reply.tool_calls:
                 console.print(f"[dim]  ↳ {t.name}({json.dumps(t.arguments, ensure_ascii=False)})[/dim]")
         console.print("[bold yellow]Duda:[/bold yellow]", Markdown(reply.text))
-        sessions.log(session_id, "user", user)
+        sessions.log(session_id, "user", message)
         sessions.log(session_id, "assistant", reply.text)
         sessions.save(session_id, provider.name, provider.history)
 
