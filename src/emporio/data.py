@@ -275,14 +275,14 @@ class Store:
         A descrição fica de fora de propósito: textos como "uma ponte entre o
         ukulele e o violão" fariam um ukulele aparecer numa busca por violões.
         """
-        terms = [t for t in normalize(query or "").split() if len(t) > 1]
-        cat = normalize(category or "")
+        terms = _words(query)
+        cat_terms = _words(category)
         results = []
         for p in self.products.values():
             haystack = normalize(
                 " ".join([p.name, p.category, " ".join(map(str, p.specs.values()))])
             )
-            if cat and cat not in normalize(p.category):
+            if cat_terms and not all(_term_match(t, normalize(p.category)) for t in cat_terms):
                 continue
             if terms and not all(_term_match(t, haystack) for t in terms):
                 continue
@@ -302,7 +302,7 @@ class Store:
         Retorna correspondências ordenadas por quantidade de termos do nome
         consultado presentes no nome do produto (melhor primeiro).
         """
-        terms = [t for t in normalize(name).split() if len(t) > 1]
+        terms = _words(name)
         scored = []
         for p in self.products.values():
             pname = normalize(p.name)
@@ -361,6 +361,13 @@ class Store:
         if order.notes:
             d["observacao"] = order.notes
         return d
+
+
+_SEARCH_STOPWORDS = {"de", "da", "do", "das", "dos", "e", "com", "para", "em"}
+
+
+def _words(text: str | None) -> list[str]:
+    return [w for w in re.findall(r"\w+", normalize(text or "")) if w not in _SEARCH_STOPWORDS]
 
 
 def _stem(word: str) -> str:
