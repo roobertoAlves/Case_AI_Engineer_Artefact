@@ -154,3 +154,51 @@ def test_contato_digitado_nao_libera_pedido_de_outra_pessoa(store):
     tb.remember_contacts("meu telefone é (67) 99789-0123")  # cliente do pedido 7
     out = run(tb, "consultar_pedido", numero_pedido=3, email_ou_telefone="(67) 99789-0123")
     assert out["encontrado"] is False
+
+
+def test_frete_campo_grande_abaixo_de_500(store):
+    out = run(toolbox(store), "calcular_frete", cep="79002-100", produto_ids=[119])  # R$ 159,90
+    assert out["destino"]["cidade"] == "Campo Grande"
+    assert out["destino"]["regiao"] == "metropolitana de Campo Grande"
+    assert out["entrega"]["valor_frete"] == 35.0
+    assert out["entrega"]["prazo"] == "1 a 3 dias úteis"
+
+
+def test_frete_campo_grande_acima_de_500_gratis(store):
+    out = run(toolbox(store), "calcular_frete", cidade="campo grande", produto_ids=[81])  # R$ 599,90
+    assert out["entrega"]["valor_frete"] == 0.0
+
+
+def test_frete_exatamente_500_paga_taxa(store):
+    # "frete grátis para pedidos ACIMA de R$ 500": dois ukuleles de R$ 249,90 = R$ 499,80
+    out = run(toolbox(store), "calcular_frete", cep="79000000", produto_ids=[117], quantidades=[2])
+    assert out["valor_dos_produtos"] == pytest.approx(499.8)
+    assert out["entrega"]["valor_frete"] == 35.0
+
+
+def test_frete_dourados_sem_valor_inventado(store):
+    out = run(toolbox(store), "calcular_frete", cep="79800-000", produto_ids=[81])
+    assert out["destino"] == {"cep": "79800-000", "cidade": "Dourados", "uf": "MS", "regiao": "outras cidades"}
+    assert out["entrega"]["valor_frete"] is None
+    assert {m["modalidade"] for m in out["entrega"]["modalidades"]} == {
+        "SEDEX (Correios)", "Jadlog (.package)", "PAC (Correios)"}
+
+
+def test_frete_fora_de_ms(store):
+    out = run(toolbox(store), "calcular_frete", cep="01310-100")  # São Paulo
+    assert out["destino"]["uf"] == "fora de MS"
+    assert out["destino"]["regiao"] == "outras cidades"
+
+
+def test_frete_bateria_acustica_e_frete_especial(store):
+    out = run(toolbox(store), "calcular_frete", cep="79800-000", produto_ids=[139])
+    assert out["frete_especial"]["produtos"] == ["Bateria Acústica Yamaha Kit 1 Studio"]
+
+
+@pytest.mark.parametrize("cep", ["7980", "abc", "79800-0000"])
+def test_frete_cep_invalido(store, cep):
+    assert "erro" in run(toolbox(store), "calcular_frete", cep=cep)
+
+
+def test_frete_sem_destino(store):
+    assert "erro" in run(toolbox(store), "calcular_frete")

@@ -15,12 +15,33 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from emporio.data import Store
+from emporio.data import Store, normalize, only_digits
 from emporio.policies import PolicyRetriever
 
 HANDOFF_LOG = Path(__file__).resolve().parents[2] / ".sessions" / "handoffs.jsonl"
 
 PIX_DISCOUNT = 0.05
+
+# Política 5.1 (região metropolitana de Campo Grande)
+METRO_FREE_SHIPPING_ABOVE = 500.0
+METRO_FLAT_FEE = 35.0
+
+# Faixas de CEP (Correios) das cidades de MS que aparecem na base de clientes.
+# O manual não lista os municípios da "região metropolitana"; assume-se o município
+# de Campo Grande. Fonte das faixas: tabela de faixas de CEP dos Correios.
+CEP_RANGES = [
+    ("Campo Grande", 79000000, 79124999, True),
+    ("Corumbá", 79300000, 79329999, False),
+    ("Três Lagoas", 79600000, 79649999, False),
+    ("Dourados", 79800000, 79849999, False),
+    ("Ponta Porã", 79900000, 79924999, False),
+]
+MS_CEP_RANGE = (79000000, 79999999)
+OUTSIDE_METRO_OPTIONS = [
+    {"modalidade": "SEDEX (Correios)", "prazo": "2 a 5 dias úteis"},
+    {"modalidade": "Jadlog (.package)", "prazo": "3 a 8 dias úteis"},
+    {"modalidade": "PAC (Correios)", "prazo": "5 a 12 dias úteis"},
+]
 # (parcelas máximas da faixa, parcela mínima) — política 3.1
 INSTALLMENT_RULES = [(3, 50.0), (6, 80.0), (12, 100.0)]
 
@@ -237,6 +258,64 @@ class Toolbox:
             "observacao": "boleto compensa em até 3 dias úteis; frete não incluído",
         }
 
+    def calcular_frete(
+        self,
+        cep: str | None = None,
+        cidade: str | None = None,
+        produto_ids: list[int] | None = None,
+        quantidades: list[int] | None = None,
+    ) -> dict:
+        """Aplica a política 5 ao destino (por CEP ou cidade) e, se informados, aos produtos."""
+        destino = _resolve_destination(cep, cidade)
+        if "erro" in destino:
+            return destino
+
+        produto_ids = produto_ids or []
+        quantidades = quantidades or [1] * len(produto_ids)
+        if len(quantidades) != len(produto_ids):
+            return {"erro": "produto_ids e quantidades devem ter o mesmo tamanho"}
+        itens, total, especiais = [], 0.0, []
+        for pid, qty in zip(produto_ids, quantidades):
+            p = self.store.products.get(int(pid))
+            if p is None:
+                return {"erro": f"produto {pid} não existe"}
+            total += p.final_price * qty
+            itens.append({"produto": p.name, "quantidade": qty})
+            if _is_large_instrument(p):
+                especiais.append(p.name)
+
+        result: dict = {"destino": destino}
+        if itens:
+            result["itens"] = itens
+            result["valor_dos_produtos"] = round(total, 2)
+
+        if destino["regiao"] == "metropolitana de Campo Grande":
+            entrega = {"modalidade": "motoboy próprio (a loja liga antes de entregar)", "prazo": "1 a 3 dias úteis"}
+            if itens:
+                entrega["valor_frete"] = 0.0 if total > METRO_FREE_SHIPPING_ABOVE else METRO_FLAT_FEE
+            else:
+                entrega["valor_frete"] = (
+                    f"grátis para pedidos acima de R$ {METRO_FREE_SHIPPING_ABOVE:.2f}; "
+                    f"abaixo disso, taxa fixa de R$ {METRO_FLAT_FEE:.2f}"
+                )
+            result["entrega"] = entrega
+        else:
+            result["entrega"] = {
+                "modalidades": OUTSIDE_METRO_OPTIONS,
+                "seguro_e_rastreamento": "incluídos em todas as modalidades",
+                "valor_frete": None,
+                "motivo_sem_valor": (
+                    "o valor é calculado no fechamento com base no CEP, peso e dimensões do produto; "
+                    "o sistema de atendimento não tem peso/dimensões nem a tabela das transportadoras"
+                ),
+            }
+        if especiais:
+            result["frete_especial"] = {
+                "produtos": especiais,
+                "regra": "instrumento de grande porte: pode exigir cotação individual com a equipe",
+            }
+        return result
+
     def encaminhar_para_atendente(self, motivo: str, resumo: str, contato_cliente: str | None = None) -> dict:
         HANDOFF_LOG.parent.mkdir(exist_ok=True)
         record = {"quando": datetime.now().isoformat(timespec="seconds"), "motivo": motivo,
@@ -320,6 +399,20 @@ class Toolbox:
                 self.simular_pagamento,
             ),
             ToolSpec(
+                "calcular_frete",
+                "Calcula frete e prazo de entrega pela política da loja a partir do CEP (ou da "
+                "cidade) de destino e, opcionalmente, dos produtos (ids das buscas). Região "
+                "metropolitana de Campo Grande: valor exato. Outras cidades: modalidades e prazos "
+                "(o valor depende de peso/dimensões e é informado no fechamento).",
+                _schema({
+                    "cep": {"type": "string", "description": "CEP de destino, ex.: '79800-000'"},
+                    "cidade": {"type": "string", "description": "use se o cliente não souber o CEP"},
+                    "produto_ids": {"type": "array", "items": {"type": "integer"}},
+                    "quantidades": {"type": "array", "items": {"type": "integer"}},
+                }),
+                self.calcular_frete,
+            ),
+            ToolSpec(
                 "encaminhar_para_atendente",
                 "Registra uma reclamação ou caso que precisa de um atendente humano (ex.: produto com "
                 "defeito, devolução a ser processada, dúvida que o manual não cobre, cliente insatisfeito).",
@@ -331,3 +424,35 @@ class Toolbox:
                 self.encaminhar_para_atendente,
             ),
         ]
+
+
+def _resolve_destination(cep: str | None, cidade: str | None) -> dict:
+    """Identifica a cidade e a região de entrega a partir do CEP ou do nome da cidade."""
+    if cep:
+        digits = only_digits(cep)
+        if len(digits) != 8:
+            return {"erro": f"CEP inválido: '{cep}'. Peça ao cliente os 8 dígitos (ex.: 79800-000)"}
+        number = int(digits)
+        city = next((c for c in CEP_RANGES if c[1] <= number <= c[2]), None)
+        in_ms = MS_CEP_RANGE[0] <= number <= MS_CEP_RANGE[1]
+        dest = {"cep": f"{digits[:5]}-{digits[5:]}", "cidade": city[0] if city else None,
+                "uf": "MS" if in_ms else "fora de MS"}
+        is_metro = bool(city and city[3])
+    elif cidade:
+        city = next((c for c in CEP_RANGES if normalize(c[0]) == normalize(cidade)), None)
+        dest = {"cidade": city[0] if city else cidade, "uf": "MS" if city else "não identificada"}
+        is_metro = bool(city and city[3])
+    else:
+        return {"erro": "informe o CEP ou a cidade de entrega"}
+    dest["regiao"] = "metropolitana de Campo Grande" if is_metro else "outras cidades"
+    return dest
+
+
+def _is_large_instrument(p) -> bool:
+    """Política 5.2: baterias acústicas, pianos digitais e contrabaixos podem ter frete especial."""
+    name = normalize(p.name)
+    return (
+        (p.category == "Baterias e Percussão" and "acustica" in name)
+        or "piano" in name
+        or (p.category == "Cordas Orquestrais" and "contrabaixo" in name)
+    )
