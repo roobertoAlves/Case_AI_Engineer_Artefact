@@ -16,6 +16,9 @@ Duda: O Takamine GD20 Dreadnought Natural custa R$ 2.199,00. É um violão dread
 ```
 
 Conversas completas em [`examples/`](examples/README.md).
+Versão em PDF deste README + documentação dos exemplos:
+[`docs/Documentacao_Agente_Emporio_da_Musica.pdf`](docs/Documentacao_Agente_Emporio_da_Musica.pdf)
+(regenerar com `python scripts/gerar_pdf.py`).
 
 ---
 
@@ -356,7 +359,8 @@ durante todo o projeto. Fluxo:
 ```
 ├── data/                    # CSVs e manual de políticas fornecidos pela loja
 ├── examples/                # 5 conversas reais + análise crítica
-├── scripts/gerar_exemplos.py
+├── docs/                    # documentação em PDF
+├── scripts/                 # gerar_exemplos.py, gerar_pdf.py
 ├── src/emporio/
 │   ├── agent.py  cli.py  data.py  llm.py  menu.py  policies.py  prompts.py  sessions.py  tools.py
 └── tests/                   # 66 testes (dados, retrieval, ferramentas, frete, loop, sessões, menu)
